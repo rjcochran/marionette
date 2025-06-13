@@ -13,6 +13,7 @@ class ControlScheme(object):
     def __init__(self):
         self.event_stream = []
         self.control_policies = []
+        self.callbacks = {}
         self.env = simpy.RealtimeEnvironment()
         self.mouse_listener = mouse.Listener(on_click=self.on_click)
         self.mouse_listener.start()
@@ -45,6 +46,15 @@ class ControlScheme(object):
             policy.interrupt()
 
 
+    def register_callback(self, callback):
+        """
+        Registers a callback function and stores its docstring.
+
+        Args:
+            callback (function): The function to register.
+        """
+        self.callbacks[callback] = {'function': callback, 'doc': callback.__doc__}
+
 
 class ControlPolicy(object):
     """
@@ -66,6 +76,3 @@ class ControlPolicy(object):
             except simpy.Interrupt:
                 pass
 
-
-cs = ControlScheme()
-time.sleep(100)
