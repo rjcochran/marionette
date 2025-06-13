@@ -1,6 +1,10 @@
 from pynput import mouse, keyboard
 import time
 import simpy
+import openai
+import os
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 
 class ControlScheme(object):
     """
@@ -55,6 +59,46 @@ class ControlScheme(object):
         """
         self.callbacks[callback] = {'function': callback, 'doc': callback.__doc__}
 
+    def generate_policy_code(self, prompt, model="gpt-4"):
+        """
+        Uses the ChatGPT API to generate code for the ControlPolicy.process method
+        using the registered callback functions.
+
+        Args:
+            prompt (str): A text prompt describing the desired behavior.
+            model (str): OpenAI model to use (default: "gpt-4").
+
+        Returns:
+            str: The generated Python code as a string.
+        """
+        if not self.callbacks:
+            raise ValueError("No callbacks registered to include in policy generation.")
+
+        callback_names = [cb.__name__ for cb in self.callbacks.keys()]
+        function_list = "\n".join(f"- {name}: {self.callbacks[cb]['doc'] or 'No docstring'}" for cb, name in zip(self.callbacks.keys(), callback_names))
+
+        system_prompt = (
+            "You are a helpful assistant that writes Python coroutine code for simpy-based control policies.\n"
+            "Given a set of available callback functions and a behavioral description, generate the body of "
+            "a `process` coroutine for a ControlPolicy class. Use appropriate simpy constructs and available callbacks."
+        )
+
+        user_prompt = (
+            f"The following callbacks are available:\n{function_list}\n\n"
+            f"Write a ControlPolicy.process method that behaves as described:\n{prompt}"
+        )
+
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7
+        )
+
+        return response['choices'][0]['message']['content']
+
 
 class ControlPolicy(object):
     """
@@ -75,4 +119,3 @@ class ControlPolicy(object):
                 yield simpy.Event(self.env)
             except simpy.Interrupt:
                 pass
-
