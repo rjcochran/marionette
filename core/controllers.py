@@ -23,6 +23,7 @@ class ControlScheme(object):
         self.mouse_listener.start()
         self.keyboard_listener = keyboard.Listener(on_press=self.on_key_press)
         self.keyboard_listener.start()
+        self.client = openai.OpenAI(api_key=openai.api_key)
 
     def on_click(self, x, y, button, pressed):
         event = {
@@ -88,7 +89,7 @@ class ControlScheme(object):
             f"Write a ControlPolicy.process method that behaves as described:\n{prompt}"
         )
 
-        response = openai.ChatCompletion.create(
+        response = self.client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -97,7 +98,7 @@ class ControlScheme(object):
             temperature=0.7
         )
 
-        return response['choices'][0]['message']['content']
+        return response.choices[0].message.content
 
 
 class ControlPolicy(object):
