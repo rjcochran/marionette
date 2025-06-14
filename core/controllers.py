@@ -1,6 +1,6 @@
 from pynput import mouse, keyboard
 import time
-import simpy
+import threading
 import openai
 import os
 import inspect
@@ -19,14 +19,9 @@ class ControlScheme(object):
         self.event_stream = []
         self.control_policies = []
         self.callbacks = {}
-        self.env = simpy.RealtimeEnvironment()
         self.mouse_listener = mouse.Listener(on_click=self.on_click)
         self.keyboard_listener = keyboard.Listener(on_press=self.on_key_press)
         self.client = openai.OpenAI(api_key=openai.api_key)
-        def _keepalive():
-            while True:
-                yield self.env.timeout(5)
-        self.env.process(_keepalive())
 
     def on_click(self, x, y, button, pressed):
         event = {
@@ -50,8 +45,6 @@ class ControlScheme(object):
     def process_event(self, event):
         timestamped_event = (event, time.time())
         self.event_stream.append(timestamped_event)
-        for policy in self.control_policies:
-            policy.interrupt()
 
 
     def register_callback(self, callback):
@@ -86,12 +79,11 @@ class ControlScheme(object):
 
         # generate prompts
         system_prompt = (
-            "You are a helpful assistant that writes Python coroutine code for simpy-based control policies.\n"
+            "You are a helpful assistant that writes Python coroutine code for control policies.\n"
             "Given a set of available callback functions and a behavioral description, generate the full "
             "`ControlPolicy` class definition such that it can be evaled verbatim. Do not generate any additional text, "
-            "including python prefixes or quotes "
-            "Use appropriate simpy constructs and available callbacks, "
-            "which will be passed ot the ControlPolicy constructor.\n\n"
+            "including python prefixes or quotes."
+            "Use appropriate available callbacks, which will be passed ot the ControlPolicy constructor.\n\n"
             "Here is the ControlPolicy class template for reference:\n"
             f"{control_policy_source}\n"
         )
@@ -122,11 +114,6 @@ class ControlScheme(object):
         self.mouse_listener.start()
         self.keyboard_listener.start()
 
-        # Start simpy environment in a separate thread
-        import threading
-        simpy_thread = threading.Thread(target=self.env.run, daemon=True)
-        simpy_thread.start()
-
         # Enter user prompt listener loop
         print("ControlScheme is running. Enter prompts to generate control policies.")
         try:
@@ -137,7 +124,8 @@ class ControlScheme(object):
                 try:
                     policy = self.generate_policy_code(user_input)
                     self.control_policies.append(policy)
-                    self.env.process(policy.process())
+                    control_thread = threading.Thread(target=policy.process, daemon=True)
+                    control_thread.start()
                     print("New ControlPolicy generated and added.")
                 except Exception as e:
                     print(f"Error generating policy: {e}")
@@ -145,23 +133,19 @@ class ControlScheme(object):
             print("Shutting down ControlScheme.")
 
 
+
+
 class ControlPolicy(object):
     """
     Represents a time-aware, interruptible control state machine.
 
-    - Encapsulates simpy-based logic.
+    - Encapsulates control logic.
     - Registers back-end function handles along with their docstrings.
     - Determines which back-end functions to invoke for each new event.
     """
     def __init__(self, scheme, callbacks):
-        self.env = scheme.env
+        self.scheme = scheme
         self.callbacks = {key: value['function'] for key, value in callbacks.items()}
-        print("object instantiated")
 
     def process(self):
-        print("process running")
-        while True:
-            try:
-                pass
-            except simpy.Interrupt:
-                pass
+        pass
