@@ -21,10 +21,12 @@ class ControlScheme(object):
         self.callbacks = {}
         self.env = simpy.RealtimeEnvironment()
         self.mouse_listener = mouse.Listener(on_click=self.on_click)
-        self.mouse_listener.start()
         self.keyboard_listener = keyboard.Listener(on_press=self.on_key_press)
-        self.keyboard_listener.start()
         self.client = openai.OpenAI(api_key=openai.api_key)
+        def _keepalive():
+            while True:
+                yield self.env.timeout(5)
+        self.env.process(_keepalive())
 
     def on_click(self, x, y, button, pressed):
         event = {
@@ -86,7 +88,8 @@ class ControlScheme(object):
         system_prompt = (
             "You are a helpful assistant that writes Python coroutine code for simpy-based control policies.\n"
             "Given a set of available callback functions and a behavioral description, generate the full "
-            "`ControlPolicy` class definition such that it can be evaled verbatim. Do not generate any additional text. "
+            "`ControlPolicy` class definition such that it can be evaled verbatim. Do not generate any additional text, "
+            "including python prefixes or quotes "
             "Use appropriate simpy constructs and available callbacks, "
             "which will be passed ot the ControlPolicy constructor.\n\n"
             "Here is the ControlPolicy class template for reference:\n"
@@ -106,7 +109,7 @@ class ControlScheme(object):
             ],
             temperature=0.7
         )
-        generated_code = response.choices[0].message.content.strip().removeprefix("```python").removesuffix("```").strip()
+        generated_code = response.choices[0].message.content
         print(generated_code)
 
         # exec code
@@ -114,6 +117,32 @@ class ControlScheme(object):
         exec(generated_code, globals(), local_ns)
         policy_instance = local_ns["ControlPolicy"](self, self.callbacks)
         return policy_instance
+
+    def start(self):
+        self.mouse_listener.start()
+        self.keyboard_listener.start()
+
+        # Start simpy environment in a separate thread
+        import threading
+        simpy_thread = threading.Thread(target=self.env.run, daemon=True)
+        simpy_thread.start()
+
+        # Enter user prompt listener loop
+        print("ControlScheme is running. Enter prompts to generate control policies.")
+        try:
+            while True:
+                user_input = input("Prompt> ").strip()
+                if not user_input:
+                    continue
+                try:
+                    policy = self.generate_policy_code(user_input)
+                    self.control_policies.append(policy)
+                    self.env.process(policy.process())
+                    print("New ControlPolicy generated and added.")
+                except Exception as e:
+                    print(f"Error generating policy: {e}")
+        except KeyboardInterrupt:
+            print("Shutting down ControlScheme.")
 
 
 class ControlPolicy(object):
@@ -126,12 +155,13 @@ class ControlPolicy(object):
     """
     def __init__(self, scheme, callbacks):
         self.env = scheme.env
-        self.callbacks = callbacks
-        scheme.env.process(self.process)
+        self.callbacks = {key: value['function'] for key, value in callbacks.items()}
+        print("object instantiated")
 
     def process(self):
+        print("process running")
         while True:
             try:
-                yield simpy.Event(self.env)
+                pass
             except simpy.Interrupt:
                 pass
