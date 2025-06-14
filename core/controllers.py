@@ -4,6 +4,7 @@ import threading
 import openai
 import os
 import inspect
+import time
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
@@ -79,12 +80,19 @@ class ControlScheme(object):
 
         # generate prompts
         system_prompt = (
-            "You are a helpful assistant that writes Python coroutine code for control policies.\n"
-            "Given a set of available callback functions and a behavioral description, generate the full "
-            "`ControlPolicy` class definition such that it can be evaled verbatim. Do not generate any additional text, "
-            "including python prefixes or quotes."
-            "Use appropriate available callbacks, which will be passed ot the ControlPolicy constructor.\n\n"
-            "Here is the ControlPolicy class template for reference:\n"
+            "You are a coding assistant that generates Python code for control policies.\n"
+            "Given a set of available callback functions and a behavioral prompt, generate a Python class "
+            "that derives from the provided `ControlPolicy` base class.\n"
+            "- You MUST define the class as a subclass of ControlPolicy using: `class YourPolicy(ControlPolicy):`\n"
+            "- Derived class must be named 'ChildControlPolicy'\n"
+            "- Output must be raw code only — DO NOT include any quotes, triple quotes, or markdown-style code blocks like ```python.\n"
+            "- Include all required imports inline.\n"
+            "- Implement a `process` method using time.sleep-based delays.\n"
+            "- Include a print statement at the top of `process` to confirm execution.\n"
+            "- For every callback used, add a print with format: "
+            "f'{time.time() - start_time:.3f}, func_name(keyword=value)'\n"
+            "- Use only the available callbacks passed into the constructor.\n\n"
+            "Here is the ControlPolicy base class for reference:\n"
             f"{control_policy_source}\n"
         )
         user_prompt = (
@@ -106,8 +114,8 @@ class ControlScheme(object):
 
         # exec code
         local_ns = {}
-        exec(generated_code, globals(), local_ns)
-        policy_instance = local_ns["ControlPolicy"](self, self.callbacks)
+        exec(generated_code, {**globals(), "ControlPolicy": ControlPolicy}, local_ns)
+        policy_instance = local_ns["ChildControlPolicy"](self, self.callbacks)
         return policy_instance
 
     def start(self):
@@ -146,6 +154,7 @@ class ControlPolicy(object):
     def __init__(self, scheme, callbacks):
         self.scheme = scheme
         self.callbacks = {key: value['function'] for key, value in callbacks.items()}
+        self.start_time = time.time()
 
     def process(self):
         pass
