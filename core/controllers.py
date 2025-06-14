@@ -83,8 +83,7 @@ class ControlScheme(object):
             "You are a coding assistant that generates Python code for control policies.\n"
             "Given a set of available callback functions and a behavioral prompt, generate a Python class "
             "that derives from the provided `ControlPolicy` base class.\n"
-            "- You MUST define the class as a subclass of ControlPolicy using: `class YourPolicy(ControlPolicy):`\n"
-            "- Derived class must be named 'ChildControlPolicy'\n"
+            "- You MUST define the class as a subclass of ControlPolicy using: `class DerivedControlPolicy(ControlPolicy):`\n"            
             "- Output must be raw code only — DO NOT include any quotes, triple quotes, or markdown-style code blocks like ```python.\n"
             "- Include all required imports inline.\n"
             "- Implement a `process` method using time.sleep-based delays.\n"
@@ -115,7 +114,7 @@ class ControlScheme(object):
         # exec code
         local_ns = {}
         exec(generated_code, {**globals(), "ControlPolicy": ControlPolicy}, local_ns)
-        policy_instance = local_ns["ChildControlPolicy"](self, self.callbacks)
+        policy_instance = local_ns["DerivedControlPolicy"](self, self.callbacks)
         return policy_instance
 
     def start(self):
