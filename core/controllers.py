@@ -3,6 +3,7 @@ import time
 import simpy
 import openai
 import os
+import inspect
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
@@ -58,9 +59,9 @@ class ControlScheme(object):
         Args:
             callback (function): The function to register.
         """
-        self.callbacks[callback] = {'function': callback, 'doc': callback.__doc__}
+        self.callbacks[callback.__name__] = {'function': callback, 'doc': callback.__doc__}
 
-    def generate_policy_code(self, prompt, model="gpt-4"):
+    def generate_policy_code(self, prompt, model="gpt-4o"):
         """
         Uses the ChatGPT API to generate code for the ControlPolicy.process method
         using the registered callback functions.
@@ -75,20 +76,28 @@ class ControlScheme(object):
         if not self.callbacks:
             raise ValueError("No callbacks registered to include in policy generation.")
 
-        callback_names = [cb.__name__ for cb in self.callbacks.keys()]
-        function_list = "\n".join(f"- {name}: {self.callbacks[cb]['doc'] or 'No docstring'}" for cb, name in zip(self.callbacks.keys(), callback_names))
+        # get info
+        callback_names = self.callbacks.keys()
+        callback_info = "\n".join(f"- {name}: {self.callbacks[cb]['doc']}"
+                                  for cb, name in zip(self.callbacks.keys(), callback_names))
+        control_policy_source = inspect.getsource(ControlPolicy)
 
+        # generate prompts
         system_prompt = (
             "You are a helpful assistant that writes Python coroutine code for simpy-based control policies.\n"
-            "Given a set of available callback functions and a behavioral description, generate the body of "
-            "a `process` coroutine for a ControlPolicy class. Use appropriate simpy constructs and available callbacks."
+            "Given a set of available callback functions and a behavioral description, generate the full "
+            "`ControlPolicy` class definition such that it can be evaled verbatim. Do not generate any additional text. "
+            "Use appropriate simpy constructs and available callbacks, "
+            "which will be passed ot the ControlPolicy constructor.\n\n"
+            "Here is the ControlPolicy class template for reference:\n"
+            f"{control_policy_source}\n"
         )
-
         user_prompt = (
-            f"The following callbacks are available:\n{function_list}\n\n"
+            f"The following callbacks are available:\n{callback_info}\n\n"
             f"Write a ControlPolicy.process method that behaves as described:\n{prompt}"
         )
 
+        # generate code
         response = self.client.chat.completions.create(
             model=model,
             messages=[
@@ -97,8 +106,14 @@ class ControlScheme(object):
             ],
             temperature=0.7
         )
+        generated_code = response.choices[0].message.content.strip().removeprefix("```python").removesuffix("```").strip()
+        print(generated_code)
 
-        return response.choices[0].message.content
+        # exec code
+        local_ns = {}
+        exec(generated_code, globals(), local_ns)
+        policy_instance = local_ns["ControlPolicy"](self, self.callbacks)
+        return policy_instance
 
 
 class ControlPolicy(object):
@@ -109,9 +124,9 @@ class ControlPolicy(object):
     - Registers back-end function handles along with their docstrings.
     - Determines which back-end functions to invoke for each new event.
     """
-    def __init__(self, scheme, backend_functions):
+    def __init__(self, scheme, callbacks):
         self.env = scheme.env
-        self.backend_functions = backend_functions
+        self.callbacks = callbacks
         scheme.env.process(self.process)
 
     def process(self):
