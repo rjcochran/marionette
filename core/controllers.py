@@ -1,5 +1,4 @@
 from pynput import mouse, keyboard
-import time
 import threading
 import openai
 import os
