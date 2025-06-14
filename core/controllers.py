@@ -4,6 +4,7 @@ import openai
 import os
 import inspect
 import time
+import queue
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
@@ -16,7 +17,7 @@ class ControlScheme(object):
     - Dynamically generates or updates state machine code in response to prompts.
     """
     def __init__(self):
-        self.event_stream = []
+        self.event_queue = queue.Queue()
         self.control_policies = []
         self.callbacks = {}
         self.mouse_listener = mouse.Listener(on_click=self.on_click)
@@ -25,11 +26,12 @@ class ControlScheme(object):
 
     def on_click(self, x, y, button, pressed):
         event = {
+            'type': 'on_click',
             'action': 'press' if pressed else 'release',
             'button': str(button),
             'position': (x, y)
         }
-        self.process_event(event)
+        self.event_queue.put(event)
 
     def on_key_press(self, key):
         try:
@@ -37,14 +39,11 @@ class ControlScheme(object):
         except AttributeError:
             key_str = str(key)
         event = {
-            'key': key_str,
-            'type': 'press'
+            'type': 'on_key_press',
+            'action': 'press',
+            'key': key_str
         }
-        self.process_event(event)
-
-    def process_event(self, event):
-        timestamped_event = (event, time.time())
-        self.event_stream.append(timestamped_event)
+        self.event_queue.put(event)
 
 
     def register_callback(self, callback):
@@ -88,10 +87,11 @@ class ControlScheme(object):
             "- Implement a `process` method using time.sleep-based delays.\n"
             "- Include a print statement at the top of `process` to confirm execution.\n"
             "- For every callback used, add a print with format: "
-            "f'{time.time() - start_time:.3f}, func_name(keyword=value)'\n"
+            "f'{time.time() - self.start_time:.3f}, func_name(keyword=value)'\n"
             "- Use only the available callbacks passed into the constructor.\n\n"
-            "Here is the ControlPolicy base class for reference:\n"
-            f"{control_policy_source}\n"
+            f"Here is the ControlPolicy base class for reference: {control_policy_source}\n"
+            "Mouse event format: {'type': 'on_click', 'action': 'press' or 'release', 'button': '<Button.left>', 'position': (x, y)}\n"
+            "Keyboard event format: {'type': 'on_key_press', 'action': 'press', 'key': '<character or special key>'}\n"
         )
         user_prompt = (
             f"The following callbacks are available:\n{callback_info}\n\n"
@@ -113,7 +113,7 @@ class ControlScheme(object):
         # exec code
         local_ns = {}
         exec(generated_code, {**globals(), "ControlPolicy": ControlPolicy}, local_ns)
-        policy_instance = local_ns["DerivedControlPolicy"](self, self.callbacks)
+        policy_instance = local_ns["DerivedControlPolicy"](self.event_queue, self.callbacks)
         return policy_instance
 
     def start(self):
@@ -143,14 +143,18 @@ class ControlScheme(object):
 
 class ControlPolicy(object):
     """
-    Represents a time-aware, interruptible control state machine.
+    Base class for defining time-aware, event-driven control policies.
 
-    - Encapsulates control logic.
-    - Registers back-end function handles along with their docstrings.
-    - Determines which back-end functions to invoke for each new event.
+    - Encapsulates a reactive control state machine with access to a shared event queue.
+    - Uses registered callback functions to handle events.
+    - Subclasses override the `process` method to define asynchronous control behavior.
+
+    Args:
+        event_queue (queue.Queue): A thread-safe queue where external events are pushed.
+        callbacks (dict): A dictionary of callback functions and their associated metadata.
     """
-    def __init__(self, scheme, callbacks):
-        self.scheme = scheme
+    def __init__(self, event_queue, callbacks):
+        self.event_queue = event_queue
         self.callbacks = {key: value['function'] for key, value in callbacks.items()}
         self.start_time = time.time()
 
