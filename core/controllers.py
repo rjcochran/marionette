@@ -84,14 +84,16 @@ class ControlScheme(object):
             "- You MUST define the class as a subclass of ControlPolicy using: `class DerivedControlPolicy(ControlPolicy):`\n"            
             "- Output must be raw code only — DO NOT include any quotes, triple quotes, or markdown-style code blocks like ```python.\n"
             "- Include all required imports inline.\n"
-            "- Implement a `process` method using time.sleep-based delays.\n"
+            "- When timing is required, implement a `process` method using time.sleep-based delays.\n"
             "- Include a print statement at the top of `process` to confirm execution.\n"
             "- For every callback used, add a print with format: "
             "f'{time.time() - self.start_time:.3f}, func_name(keyword=value)'\n"
+            "- Add print statements for every event received on event_queue.\n"
             "- Use only the available callbacks passed into the constructor.\n\n"
-            f"Here is the ControlPolicy base class for reference: {control_policy_source}\n"
-            "Mouse event format: {'type': 'on_click', 'action': 'press' or 'release', 'button': '<Button.left>', 'position': (x, y)}\n"
-            "Keyboard event format: {'type': 'on_key_press', 'action': 'press', 'key': '<character or special key>'}\n"
+            "For reference: "
+            f"- ControlPolicy base class: {control_policy_source}\n\n"
+            "- Mouse event format: {'type': 'on_click', 'action': 'press' or 'release', 'button': '<Button.left>', 'position': (x, y)}\n\n"
+            "- Keyboard event format: {'type': 'on_key_press', 'action': 'press', 'key': '<character or special key>'}\n\n"
         )
         user_prompt = (
             f"The following callbacks are available:\n{callback_info}\n\n"
@@ -129,6 +131,8 @@ class ControlScheme(object):
                     continue
                 try:
                     policy = self.generate_policy_code(user_input)
+                    with self.event_queue.mutex:
+                        self.event_queue.queue.clear()
                     self.control_policies.append(policy)
                     control_thread = threading.Thread(target=policy.process, daemon=True)
                     control_thread.start()
