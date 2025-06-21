@@ -119,27 +119,23 @@ class ControlScheme(object):
         policy_instance = local_ns["DerivedControlPolicy"](self.event_queue, self.callbacks)
         return policy_instance
 
-    def start(self):
+    def add_policy(self, user_prompt):
         self.mouse_listener.start()
         self.keyboard_listener.start()
 
         # Enter user prompt listener loop
         print("ControlScheme is running. Enter prompts to generate control policies.")
         try:
-            while True:
-                user_input = input("Prompt> ").strip()
-                if not user_input:
-                    continue
-                try:
-                    policy = self.generate_policy_code(user_input)
-                    with self.event_queue.mutex:
-                        self.event_queue.queue.clear()
-                    self.control_policies.append(policy)
-                    control_thread = threading.Thread(target=policy.process, daemon=True)
-                    control_thread.start()
-                    print("New ControlPolicy generated and added.")
-                except Exception as e:
-                    print(f"Error generating policy: {e}")
+            try:
+                policy = self.generate_policy_code(user_prompt)
+                with self.event_queue.mutex:
+                    self.event_queue.queue.clear()
+                self.control_policies.append(policy)
+                control_thread = threading.Thread(target=policy.process, daemon=True)
+                control_thread.start()
+                print("New ControlPolicy generated and added.")
+            except Exception as e:
+                print(f"Error generating policy: {e}")
         except KeyboardInterrupt:
             print("Shutting down ControlScheme.")
 
