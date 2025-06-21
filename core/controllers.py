@@ -23,6 +23,8 @@ class ControlScheme(object):
         self.mouse_listener = mouse.Listener(on_click=self.on_click)
         self.keyboard_listener = keyboard.Listener(on_press=self.on_key_press)
         self.client = openai.OpenAI(api_key=openai.api_key)
+        self.mouse_listener.start()
+        self.keyboard_listener.start()
 
     def on_click(self, x, y, button, pressed):
         event = {
@@ -120,8 +122,6 @@ class ControlScheme(object):
         return policy_instance
 
     def add_policy(self, user_prompt):
-        self.mouse_listener.start()
-        self.keyboard_listener.start()
 
         # Enter user prompt listener loop
         print("ControlScheme is running. Enter prompts to generate control policies.")
@@ -150,7 +150,7 @@ class ControlPolicy(object):
     - Uses registered callback functions to handle events.
     - Subclasses override the `process` method to define asynchronous control behavior.
 
-    Args:
+    Args:acacac
         event_queue (queue.Queue): A thread-safe queue where external events are pushed.
         callbacks (dict): A dictionary of callback functions and their associated metadata.
     """
