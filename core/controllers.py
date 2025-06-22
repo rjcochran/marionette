@@ -17,7 +17,6 @@ class ControlScheme(object):
     - Dynamically generates or updates state machine code in response to prompts.
     """
     def __init__(self):
-        self.event_queue = queue.Queue()
         self.control_policies = []
         self.callbacks = {}
         self.mouse_listener = mouse.Listener(on_click=self.on_click)
@@ -33,7 +32,8 @@ class ControlScheme(object):
             'button': str(button),
             'position': (x, y)
         }
-        self.event_queue.put(event)
+        for control_policy in self.control_policies:
+            control_policy.event_queue.put(event)
 
     def on_key_press(self, key):
         try:
@@ -45,7 +45,8 @@ class ControlScheme(object):
             'action': 'press',
             'key': key_str
         }
-        self.event_queue.put(event)
+        for control_policy in self.control_policies:
+            control_policy.event_queue.put(event)
 
 
     def register_callback(self, callback):
@@ -118,7 +119,7 @@ class ControlScheme(object):
         # exec code
         local_ns = {}
         exec(generated_code, {**globals(), "ControlPolicy": ControlPolicy}, local_ns)
-        policy_instance = local_ns["DerivedControlPolicy"](self.event_queue, self.callbacks)
+        policy_instance = local_ns["DerivedControlPolicy"](self.callbacks)
         return policy_instance
 
     def add_policy(self, user_prompt):
@@ -128,8 +129,9 @@ class ControlScheme(object):
         try:
             try:
                 policy = self.generate_policy_code(user_prompt)
-                with self.event_queue.mutex:
-                    self.event_queue.queue.clear()
+                for control_policy in self.control_policies:
+                    with control_policy.event_queue.mutex:
+                        control_policy.event_queue.queue.clear()
                 self.control_policies.append(policy)
                 control_thread = threading.Thread(target=policy.process, daemon=True)
                 control_thread.start()
@@ -151,12 +153,11 @@ class ControlPolicy(object):
     - Subclasses override the `process` method to define asynchronous control behavior.
 
     Args:acacac
-        event_queue (queue.Queue): A thread-safe queue where external events are pushed.
         callbacks (dict): A dictionary of callback functions and their associated metadata.
     """
-    def __init__(self, event_queue, callbacks):
-        self.event_queue = event_queue
+    def __init__(self, callbacks):
         self.callbacks = {key: value['function'] for key, value in callbacks.items()}
+        self.event_queue = queue.Queue()
         self.start_time = time.time()
 
     def process(self):
