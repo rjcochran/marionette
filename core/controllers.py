@@ -84,6 +84,7 @@ class ControlScheme(object):
             "You are a coding assistant that generates Python code for control policies.\n"
             "Given a set of available callback functions and a behavioral prompt, generate a Python class "
             "that derives from the provided `ControlPolicy` base class.\n"
+            "- Only trigger on keyboard / mouse events if explicitly instructed to do so in prompt, otherwise just invoke callbacks directly.\n"
             "- You MUST define the class as a subclass of ControlPolicy using: `class DerivedControlPolicy(ControlPolicy):`\n"            
             "- Output must be raw code only — DO NOT include any quotes, triple quotes, or markdown-style code blocks like ```python.\n"
             "- Include all required imports inline.\n"
@@ -123,9 +124,6 @@ class ControlScheme(object):
         return policy_instance
 
     def add_policy(self, user_prompt):
-
-        # Enter user prompt listener loop
-        print("ControlScheme is running. Enter prompts to generate control policies.")
         try:
             try:
                 policy = self.generate_policy_code(user_prompt)
