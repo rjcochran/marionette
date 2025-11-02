@@ -5,6 +5,7 @@ import os
 import inspect
 import time
 import queue
+import speech_recognition as sr
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
@@ -65,7 +66,7 @@ class ControlScheme(object):
 
         Args:
             prompt (str): A text prompt describing the desired behavior.
-            model (str): OpenAI model to use (default: "gpt-4").
+            model (str): OpenAI model to use (default: "gpt-5").
 
         Returns:
             str: The generated Python code as a string.
@@ -160,3 +161,24 @@ class ControlPolicy(object):
 
     def process(self):
         pass
+
+
+class SpeechInterface(object):
+
+    def __init__(self):
+        self.recognizer = sr.Recognizer()
+        self.control_scheme = ControlScheme()
+
+    def start(self):
+        with sr.Microphone() as source:
+            while True:
+                audio_data = self.recognizer.listen(source)
+                try:
+                    # Recognize speech using Google Web Speech API
+                    prompt = self.recognizer.recognize_google(audio_data)
+                    print("You said:", prompt)
+                    self.control_scheme.add_policy(prompt)
+                except sr.UnknownValueError:
+                    print("Google could not understand audio")
+                except sr.RequestError as e:
+                    print(f"Could not request results from Google; {e}")
