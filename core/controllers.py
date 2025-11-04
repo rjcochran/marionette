@@ -6,6 +6,7 @@ import inspect
 import time
 import queue
 import speech_recognition as sr
+import tempfile
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
@@ -96,6 +97,7 @@ class ControlScheme(object):
             "- Add print statements for every event received on event_queue with format: "
             "f'{time.time() - self.start_time:.3f}, {event dictionary}'\n"
             "- Use only the available callbacks passed into the constructor.\n\n"
+            "- Only generate code if there is a high degree of confidence, otherwise return the message 'None'"
             "For reference: "
             f"- ControlPolicy base class: {control_policy_source}\n\n"
             "- Mouse event format: {'type': 'on_click', 'action': 'press' or 'release', 'button': '<Button.left>', 'position': (x, y)}\n\n"
@@ -119,22 +121,26 @@ class ControlScheme(object):
         print(generated_code)
 
         # exec code
-        local_ns = {}
-        exec(generated_code, {**globals(), "ControlPolicy": ControlPolicy}, local_ns)
-        policy_instance = local_ns["DerivedControlPolicy"](self.callbacks)
-        return policy_instance
+        if generated_code != 'None':
+            local_ns = {}
+            exec(generated_code, {**globals(), "ControlPolicy": ControlPolicy}, local_ns)
+            policy_instance = local_ns["DerivedControlPolicy"](self.callbacks)
+            return policy_instance
+        else:
+            return None
 
     def add_policy(self, user_prompt):
         try:
             try:
                 policy = self.generate_policy_code(user_prompt)
-                for control_policy in self.control_policies:
-                    with control_policy.event_queue.mutex:
-                        control_policy.event_queue.queue.clear()
-                self.control_policies.append(policy)
-                control_thread = threading.Thread(target=policy.process, daemon=True)
-                control_thread.start()
-                print("New ControlPolicy generated and added.")
+                if policy:
+                    for control_policy in self.control_policies:
+                        with control_policy.event_queue.mutex:
+                            control_policy.event_queue.queue.clear()
+                    self.control_policies.append(policy)
+                    control_thread = threading.Thread(target=policy.process, daemon=True)
+                    control_thread.start()
+                    print("New ControlPolicy generated and added.")
             except Exception as e:
                 print(f"Error generating policy: {e}")
         except KeyboardInterrupt:
@@ -168,17 +174,29 @@ class SpeechInterface(object):
     def __init__(self):
         self.recognizer = sr.Recognizer()
         self.control_scheme = ControlScheme()
+        self.client = openai.OpenAI(api_key=openai.api_key)
 
     def start(self):
         with sr.Microphone() as source:
+            self.recognizer.adjust_for_ambient_noise(source, duration=1.0)
+            print("🎙️ Listening... (Ctrl+C to stop)")
             while True:
-                audio_data = self.recognizer.listen(source)
                 try:
-                    # Recognize speech using Google Web Speech API
-                    prompt = self.recognizer.recognize_google(audio_data)
-                    print("You said:", prompt)
-                    self.control_scheme.add_policy(prompt)
-                except sr.UnknownValueError:
-                    print("Google could not understand audio")
-                except sr.RequestError as e:
-                    print(f"Could not request results from Google; {e}")
+                    audio_data = self.recognizer.listen(source)
+                    wav_bytes = audio_data.get_wav_data()
+                    with tempfile.NamedTemporaryFile(suffix=".wav") as tf:
+                        tf.write(wav_bytes)
+                        tf.flush()
+                        with open(tf.name, "rb") as f:
+                            transcript = self.client.audio.translations.create(model="whisper-1", file=f)
+                    prompt = (transcript.text or "").strip()
+                    if prompt:
+                        print("You said:", prompt)
+                        self.control_scheme.add_policy(prompt)
+                except sr.WaitTimeoutError:
+                    continue
+                except KeyboardInterrupt:
+                    print("Stopping SpeechInterface.")
+                    break
+                except Exception as e:
+                    print(f"Whisper translation error: {e}")
