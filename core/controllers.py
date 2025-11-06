@@ -129,7 +129,7 @@ class ControlScheme(object):
         else:
             return None
 
-    def add_policy(self, user_prompt):
+    def add_policy(self, user_prompt, daemon=False):
         try:
             try:
                 policy = self.generate_policy_code(user_prompt)
@@ -138,9 +138,11 @@ class ControlScheme(object):
                         with control_policy.event_queue.mutex:
                             control_policy.event_queue.queue.clear()
                     self.control_policies.append(policy)
-                    control_thread = threading.Thread(target=policy.process, daemon=True)
-                    control_thread.start()
-                    print("New ControlPolicy generated and added.")
+                    if daemon:
+                        control_thread = threading.Thread(target=policy.process, daemon=True)
+                        control_thread.start()
+                    else:
+                        policy.process()
             except Exception as e:
                 print(f"Error generating policy: {e}")
         except KeyboardInterrupt:
