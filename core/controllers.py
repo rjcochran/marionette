@@ -200,3 +200,27 @@ class SpeechInterface(object):
                     break
                 except Exception as e:
                     print(f"Whisper translation error: {e}")
+
+class TextInterface(object):
+    """
+    Simple text-based interface that reads typed prompts from stdin and
+    forwards them to the ControlScheme to generate and run policies.
+    """
+    def __init__(self):
+        self.control_scheme = ControlScheme()
+
+    def start(self):
+        print("⌨️  Type prompts. Press Enter on an empty line to quit. (Ctrl+C to stop)")
+        while True:
+            try:
+                prompt = input("> ").strip()
+                if prompt == "":
+                    print("Exiting TextInterface.")
+                    break
+                print("You typed:", prompt)
+                self.control_scheme.add_policy(prompt)
+            except KeyboardInterrupt:
+                print("Stopping TextInterface.")
+                break
+            except Exception as e:
+                print(f"Text input error: {e}")
