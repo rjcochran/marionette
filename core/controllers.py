@@ -118,7 +118,7 @@ class ControlScheme(object):
             # temperature=0.7
         )
         generated_code = response.choices[0].message.content
-        print(generated_code)
+        # print(generated_code)
 
         # exec code
         if generated_code != 'None':
