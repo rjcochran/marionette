@@ -115,7 +115,7 @@ class ControlScheme(object):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            # temperature=0.7
+            temperature=0
         )
         generated_code = response.choices[0].message.content
         # print(generated_code)
