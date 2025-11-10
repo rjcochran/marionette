@@ -95,6 +95,7 @@ class ControlScheme(object):
             "f'func_name(keyword=value)'\n"
             "- Add print statements for every event received on event_queue with format: "
             "f'{event dictionary}'\n"
+            "- Do not add any additional print statements besides the ones described.\n\n"
             "- Use only the available callbacks passed into the constructor.\n\n"
             "- Only generate code if there is a high degree of confidence, otherwise return the message 'None'"
             "For reference: "
