@@ -91,7 +91,7 @@ class ControlScheme(object):
             "- Output must be raw code only — DO NOT include any quotes, triple quotes, or markdown-style code blocks like ```python.\n"
             "- Include all required imports inline.\n"
             "- When timing is required, implement a `process` method using time.sleep-based delays.\n"
-            "- For every callback used, add a print with format: "
+            "- For every callback used, add a print at the beginning with format: "
             "f'func_name(keyword=value)'\n"
             "- Add print statements for every event received on event_queue with format: "
             "f'{event dictionary}'\n"
